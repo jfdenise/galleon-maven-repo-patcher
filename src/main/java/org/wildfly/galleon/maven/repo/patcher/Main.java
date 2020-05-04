@@ -52,6 +52,9 @@ public final class Main {
 
     private static final Set<String> FP = new HashSet<>();
 
+    static final String WORK_DIR = "tool-work-dir";
+    static final String FP_PATHS = "fp-paths";
+    static final String PATCH_MARKER = "-patch";
     static {
         FP.add("org/wildfly/core/wildfly-core-galleon-pack");
         FP.add("org/jboss/eap/wildfly-servlet-galleon-pack");
@@ -63,14 +66,24 @@ public final class Main {
         if (args.length != 3) {
             System.err.println("Error, 3 arguments expected: zipped repo, zipped repo patch, generated zipped repo file name");
         }
-        String originalMavenRepo = args[0];
-        String repoPatch = args[1];
+        Path originalMavenRepo = Paths.get(args[0]);
+        Path repoPatch = Paths.get(args[1]);
+
+        if (!Files.exists(originalMavenRepo)) {
+            throw new Exception("Original repo doesn't exist");
+        }
+
+        if (!Files.exists(repoPatch)) {
+            throw new Exception("Repo patch doesn't exist");
+        }
+
         Path outputFile = Paths.get(args[2]);
         List<Path> createdPatches = new ArrayList<>();
         List<FPID> createdPatchesGAV = new ArrayList<>();
 
         Files.deleteIfExists(outputFile);
-        Path workDir = Paths.get("tool-work-dir");
+        Path workDir = Paths.get(WORK_DIR);
+        System.out.println("Tool work dir (you can delete once tool has been run): " + workDir);
         IoUtils.recursiveDelete(workDir);
         Path dir = Files.createDirectory(workDir);
 
@@ -78,11 +91,11 @@ public final class Main {
         Path repoPatchDir = dir.resolve("repo-patch");
 
         System.out.println("Unzipping maven repo to " + repoParentDir);
-        ZipUtils.unzip(Paths.get(originalMavenRepo), repoParentDir);
+        ZipUtils.unzip(originalMavenRepo, repoParentDir);
         Path repoDir = Files.list(repoParentDir).findFirst().get();
 
         System.out.println("Unzipping maven repo patch to " + repoPatchDir);
-        ZipUtils.unzip(Paths.get(repoPatch), repoPatchDir);
+        ZipUtils.unzip(repoPatch, repoPatchDir);
 
         // Convert the new artifacts to key/value pairs as they exist in artifact.properties file.
         Map<String, String> newArtifactsMap = convertToArtifactVersion(repoPatchDir);
@@ -93,8 +106,18 @@ public final class Main {
         retrievePatchedFiles(patchedRepoRoot, patchedFiles);
         log.addedArtifacts(patchedFiles);
 
+        Set<String> fps = FP;
+        // Used by tests
+        String fpPaths = System.getProperty(FP_PATHS, null);
+        if (fpPaths != null) {
+            String[] paths = fpPaths.split(",");
+            fps = new HashSet<>();
+            for (String p : paths) {
+                fps.add(p.trim());
+            }
+        }
         // Iterate over all the known galleon feature-packs
-        for (String p : FP) {
+        for (String p : fps) {
             Path fppath = mavenRepoRoot.resolve(p);
             if (!Files.exists(fppath)) {
                 continue;
@@ -127,7 +150,7 @@ public final class Main {
                 if (origVersion != null) {
                     // replace with updated artifact
                     versionProps.put(entry.getKey(), entry.getValue());
-                    toRemove.add(convertToPath(origVersion));
+                    toRemove.add(convertToPath(origVersion).getParent());
                     oldArtifacts.put(entry.getKey(), origVersion);
                 }
             }
@@ -220,7 +243,7 @@ public final class Main {
         }
     }
 
-    private static Map<String, String> readProperties(final Path propsFile) throws Exception {
+    static Map<String, String> readProperties(final Path propsFile) throws Exception {
         final Map<String, String> propsMap = new HashMap<>();
         readProperties(propsFile, propsMap);
         return propsMap;
@@ -245,7 +268,7 @@ public final class Main {
         return patchFile;
     }
 
-    private static void storeArtifactVersions(Map<String, String> map, Path target) throws IOException {
+    static void storeArtifactVersions(Map<String, String> map, Path target) throws IOException {
         try (BufferedWriter writer = Files.newBufferedWriter(target, StandardOpenOption.CREATE)) {
             for (Map.Entry<String, String> entry : map.entrySet()) {
                 writer.write(entry.getKey());
@@ -262,7 +285,7 @@ public final class Main {
         return spec.getFPID();
     }
 
-    private static Path convertToPath(String str) {
+    static Path convertToPath(String str) {
 
         final String[] parts = str.split(":");
         final String groupId = parts[0];
@@ -278,6 +301,7 @@ public final class Main {
             name.append("-").append(classifier);
         }
         name.append(".").append(extension);
+        path = path.resolve(name.toString());
         return path;
     }
 
@@ -317,28 +341,36 @@ public final class Main {
             }
         });
         for (Path path : files) {
-            Path versionPath = path.getParent();
-            Path artifactIdPath = versionPath.getParent();
-            Path groupIdPath = artifactIdPath.getParent();
-            String version = path.getParent().getFileName().toString();
-            String artifactId = artifactIdPath.getFileName().toString();
-            String groupId = groupIdPath.toString().replaceAll("/", ".");
-            String artifact = path.getFileName().toString();
-            int versionIndex = artifact.indexOf(version);
-            int extIndex = artifact.lastIndexOf(".");
-            String extension = artifact.substring(extIndex + 1);
-            String classifier = artifact.substring(versionIndex + version.length(), extIndex);
-            StringBuilder key = new StringBuilder();
-            key.append(groupId).append(":").append(artifactId);
-            StringBuilder value = new StringBuilder();
-            value.append(groupId).append(":").append(artifactId).append(":").append(version).append(":");
-            if (classifier != null && !classifier.isEmpty()) {
-                key.append("::").append(classifier);
-                value.append(classifier);
-            }
-            value.append(":").append(extension);
-            map.put(key.toString(), value.toString());
+            String[] entry = pathToArtifactVersion(path);
+            map.put(entry[0], entry[1]);
         }
+    }
+
+    static String[] pathToArtifactVersion(Path path) {
+        Path versionPath = path.getParent();
+        Path artifactIdPath = versionPath.getParent();
+        Path groupIdPath = artifactIdPath.getParent();
+        String version = path.getParent().getFileName().toString();
+        String artifactId = artifactIdPath.getFileName().toString();
+        String groupId = groupIdPath.toString().replaceAll("/", ".");
+        String artifact = path.getFileName().toString();
+        int versionIndex = artifact.indexOf(version);
+        int extIndex = artifact.lastIndexOf(".");
+        String extension = artifact.substring(extIndex + 1);
+        String classifier = artifact.substring(versionIndex + version.length(), extIndex);
+        StringBuilder key = new StringBuilder();
+        key.append(groupId).append(":").append(artifactId);
+        StringBuilder value = new StringBuilder();
+        value.append(groupId).append(":").append(artifactId).append(":").append(version).append(":");
+        if (classifier != null && !classifier.isEmpty()) {
+            // Remove leading "-";
+            classifier = classifier.substring(1);
+            key.append("::").append(classifier);
+            value.append(classifier);
+        }
+        value.append(":").append(extension);
+        String[] ret = {key.toString(), value.toString()};
+        return ret;
     }
 
     private static void retrievePatchedFiles(Path p, Set<Path> set) throws Exception {
@@ -368,6 +400,6 @@ public final class Main {
     private static String createPatchVersion(String version) {
         int idx = version.indexOf("-redhat-");
         String prefix = version.substring(0, idx);
-        return prefix + "-patch" + version.substring(idx);
+        return prefix + PATCH_MARKER + version.substring(idx);
     }
 }
