@@ -31,31 +31,31 @@ public class ArtifactVersionsTestCase {
     public void test() throws Exception {
         {
             Path p = Paths.get("org/foo/bar/art1/1.0/art1-1.0.jar");
-            String[] entry = Main.pathToArtifactVersion(p);
+            String[] entry = ArtifactUtils.pathToArtifactVersion(p);
             Assert.assertEquals("org.foo.bar:art1=org.foo.bar:art1:1.0::jar", entry[0] + "=" + entry[1]);
         }
 
         {
             Path p = Paths.get("org/foo/bar/art1.foo.bar/1.0/art1-1.0.jar");
-            String[] entry = Main.pathToArtifactVersion(p);
+            String[] entry = ArtifactUtils.pathToArtifactVersion(p);
             Assert.assertEquals("org.foo.bar:art1.foo.bar=org.foo.bar:art1.foo.bar:1.0::jar", entry[0] + "=" + entry[1]);
         }
 
         {
             Path p = Paths.get("org/foo/bar/art1/1.0/art1-1.0-class.jar");
-            String[] entry = Main.pathToArtifactVersion(p);
+            String[] entry = ArtifactUtils.pathToArtifactVersion(p);
             Assert.assertEquals("org.foo.bar:art1::class=org.foo.bar:art1:1.0:class:jar", entry[0] + "=" + entry[1]);
         }
 
         {
             Path p = Paths.get("org/foo/bar/art1.foo.bar/1.0/art1-1.0-class.jar");
-            String[] entry = Main.pathToArtifactVersion(p);
+            String[] entry = ArtifactUtils.pathToArtifactVersion(p);
             Assert.assertEquals("org.foo.bar:art1.foo.bar::class=org.foo.bar:art1.foo.bar:1.0:class:jar", entry[0] + "=" + entry[1]);
         }
 
         {
             Path p = Paths.get("org/foo/bar/art1/1.0/art1-1.0.foo");
-            String[] entry = Main.pathToArtifactVersion(p);
+            String[] entry = ArtifactUtils.pathToArtifactVersion(p);
             Assert.assertEquals("org.foo.bar:art1=org.foo.bar:art1:1.0::foo", entry[0] + "=" + entry[1]);
         }
     }

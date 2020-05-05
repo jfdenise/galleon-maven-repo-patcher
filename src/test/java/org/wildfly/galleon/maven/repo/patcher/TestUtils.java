@@ -63,7 +63,7 @@ public class TestUtils {
                 artifactVersions.put(artifact.getEntry()[0], artifact.getEntry()[1]);
             }
         }
-        Main.storeArtifactVersions(artifactVersions, propsFile);
+        ArtifactUtils.storeArtifactVersions(artifactVersions, propsFile);
         ZipUtils.zip(dir, outputFile);
         IoUtils.recursiveDelete(dir);
     }

@@ -30,7 +30,7 @@ public class PatchedArtifact extends Artifact {
     PatchedArtifact(Path original, Path patched) {
         super(original);
         this.patched = patched;
-        this.patchedEntry = Main.pathToArtifactVersion(patched);
+        this.patchedEntry = ArtifactUtils.pathToArtifactVersion(patched);
     }
 
     /**

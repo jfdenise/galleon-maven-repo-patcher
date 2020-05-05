@@ -38,7 +38,7 @@ public class MainTestCase extends AbstractMainTest {
     final String producer2 = "fp-prod2";
     final String producer3 = "fp-prod3";
     final String fpVersion = "1.0-redhat-00001";
-    final String expectedFpversion = "1.0" + Main.PATCH_MARKER + "-redhat-00001";
+    final String expectedFpversion = "1.0" + Patcher.PATCH_MARKER + "-redhat-00001";
     final List<Artifact> lst = new ArrayList<>();
     final Set<Path> dirRemoved = new HashSet<>();
 
@@ -77,7 +77,7 @@ public class MainTestCase extends AbstractMainTest {
         TestUtils.buildFP(root, producer2, fpVersion, lst2);
         TestUtils.buildFP(root, producer3, fpVersion, lst3);
         // To advertise the GA of feature-packs
-        System.setProperty(Main.FP_PATHS, "org/foo/bar/" + producer1 + ",org/foo/bar/" + producer2 + ",org/foo/bar/" + producer3);
+        System.setProperty(Patcher.FP_PATHS, "org/foo/bar/" + producer1 + ",org/foo/bar/" + producer2 + ",org/foo/bar/" + producer3);
 
         lst.addAll(lst1);
         lst.addAll(lst2);
@@ -117,14 +117,14 @@ public class MainTestCase extends AbstractMainTest {
         //check content of artifacts versions.
         Map<String, String> artifactVersions = new HashMap<>();
         for (String id : ids) {
-            Path fpPath = mavenRepo.resolve(Main.convertToPath(id + "::zip"));
+            Path fpPath = mavenRepo.resolve(ArtifactUtils.convertToPath(id + "::zip"));
             Assert.assertTrue(Files.exists(fpPath));
             Assert.assertTrue(fpPath.toString(), fpPath.toString().endsWith(".zip"));
             Path tmp = Files.createTempDirectory("fp");
             ZipUtils.unzip(fpPath, tmp);
             Path versions = tmp.resolve("resources").resolve("wildfly").resolve("artifact-versions.properties");
             Assert.assertTrue(Files.exists(versions));
-            artifactVersions.putAll(Main.readProperties(versions));
+            artifactVersions.putAll(ArtifactUtils.readProperties(versions));
         }
         Assert.assertEquals(lst.size(), artifactVersions.size());
         // We must have them all.

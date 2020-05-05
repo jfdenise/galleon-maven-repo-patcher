@@ -16,15 +16,9 @@
  */
 package org.wildfly.galleon.maven.repo.patcher;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import org.jboss.galleon.util.ZipUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -38,7 +32,7 @@ public class MissingArtifactsTestCase extends AbstractMainTest {
     final String producer2 = "fp-prod2";
     final String producer3 = "fp-prod3";
     final String fpVersion = "1.0-redhat-00001";
-    final String expectedFpversion = "1.0" + Main.PATCH_MARKER + "-redhat-00001";
+    final String expectedFpversion = "1.0" + Patcher.PATCH_MARKER + "-redhat-00001";
     final List<Artifact> lst = new ArrayList<>();
 
     @Test
@@ -78,7 +72,7 @@ public class MissingArtifactsTestCase extends AbstractMainTest {
         TestUtils.buildFP(root, producer2, fpVersion, lst2);
         TestUtils.buildFP(root, producer3, fpVersion, lst3);
         // To advertise the GA of feature-packs
-        System.setProperty(Main.FP_PATHS, "org/foo/bar/" + producer1 + ",org/foo/bar/" + producer2 + ",org/foo/bar/" + producer3);
+        System.setProperty(Patcher.FP_PATHS, "org/foo/bar/" + producer1 + ",org/foo/bar/" + producer2 + ",org/foo/bar/" + producer3);
 
         lst.addAll(lst1);
         lst.addAll(lst2);

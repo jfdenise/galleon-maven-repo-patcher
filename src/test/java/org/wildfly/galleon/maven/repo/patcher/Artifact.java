@@ -30,7 +30,7 @@ public class Artifact {
     Artifact(Path path) {
         this.path = path;
         // Null for patched artifact that are nit in the original maven repo.
-        this.entry = path == null ? null : Main.pathToArtifactVersion(path);
+        this.entry = path == null ? null : ArtifactUtils.pathToArtifactVersion(path);
     }
 
     /**

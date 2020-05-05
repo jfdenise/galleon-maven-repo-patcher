@@ -23,7 +23,6 @@ import java.util.List;
 import org.jboss.galleon.util.IoUtils;
 import org.jboss.galleon.util.ZipUtils;
 import org.junit.Assert;
-import org.junit.Test;
 
 /**
  *
@@ -55,8 +54,8 @@ abstract class AbstractMainTest {
 
         } finally {
             IoUtils.recursiveDelete(wkDir);
-            IoUtils.recursiveDelete(Paths.get(Main.WORK_DIR));
-            System.clearProperty(Main.FP_PATHS);
+            IoUtils.recursiveDelete(Paths.get(Patcher.WORK_DIR));
+            System.clearProperty(Patcher.FP_PATHS);
         }
     }
 

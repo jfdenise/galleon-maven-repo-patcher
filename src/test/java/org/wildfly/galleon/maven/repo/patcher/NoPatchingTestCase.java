@@ -32,7 +32,7 @@ public class NoPatchingTestCase extends AbstractMainTest {
     final String producer2 = "fp-prod2";
     final String producer3 = "fp-prod3";
     final String fpVersion = "1.0-redhat-00001";
-    final String expectedFpversion = "1.0" + Main.PATCH_MARKER + "-redhat-00001";
+    final String expectedFpversion = "1.0" + Patcher.PATCH_MARKER + "-redhat-00001";
     final List<Artifact> lst = new ArrayList<>();
 
     @Test
@@ -43,7 +43,7 @@ public class NoPatchingTestCase extends AbstractMainTest {
             failed = true;
         } catch (Exception ex) {
             // OK Expected
-            Assert.assertTrue(ex.getMessage().contains("No patches created, something wrong somewhere"));
+            Assert.assertTrue(ex.getMessage().contains("No artifacts found in the maven repo patch"));
         }
         if (failed) {
             throw new Exception("test should have failed");
@@ -59,7 +59,7 @@ public class NoPatchingTestCase extends AbstractMainTest {
 
         TestUtils.buildFP(root, producer1, fpVersion, lst);
         // To advertise the GA of feature-packs
-        System.setProperty(Main.FP_PATHS, "org/foo/bar/" + producer1);
+        System.setProperty(Patcher.FP_PATHS, "org/foo/bar/" + producer1);
         return lst;
     }
 
