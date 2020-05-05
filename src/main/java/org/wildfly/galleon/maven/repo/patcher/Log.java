@@ -39,7 +39,7 @@ public class Log {
 
     void addedArtifacts(Set<Path> patchedFiles) {
         for (Path p : patchedFiles) {
-            addedMessages.append(" - " + p + "/*").append("\n");
+            addedMessages.append(" - " + p.getParent() + "/*").append("\n");
         }
     }
 
@@ -52,6 +52,10 @@ public class Log {
     }
 
     void addDeletedArtifact(Path oldPath) {
+        deletedMessages.append(" - " + oldPath).append("\n");
+    }
+
+    void addDeletedDir(Path oldPath) {
         deletedMessages.append(" - " + oldPath + "/*").append("\n");
     }
 

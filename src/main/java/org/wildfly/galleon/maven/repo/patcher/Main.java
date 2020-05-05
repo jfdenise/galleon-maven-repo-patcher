@@ -55,6 +55,7 @@ public final class Main {
     static final String WORK_DIR = "tool-work-dir";
     static final String FP_PATHS = "fp-paths";
     static final String PATCH_MARKER = "-patch";
+
     static {
         FP.add("org/wildfly/core/wildfly-core-galleon-pack");
         FP.add("org/jboss/eap/wildfly-servlet-galleon-pack");
@@ -97,15 +98,16 @@ public final class Main {
         System.out.println("Unzipping maven repo patch to " + repoPatchDir);
         ZipUtils.unzip(repoPatch, repoPatchDir);
 
-        // Convert the new artifacts to key/value pairs as they exist in artifact.properties file.
-        Map<String, String> newArtifactsMap = convertToArtifactVersion(repoPatchDir);
-        Log log = new Log();
         Path mavenRepoRoot = getMavenRepoRoot(repoDir);
         Path patchedRepoRoot = getMavenRepoRoot(repoPatchDir);
+
+        Log log = new Log();
         Set<Path> patchedFiles = new HashSet<>();
         retrievePatchedFiles(patchedRepoRoot, patchedFiles);
         log.addedArtifacts(patchedFiles);
 
+        // Convert the new artifacts to key/value pairs as they exist in artifact.properties file.
+        Map<String, String> newArtifactsMap = convertToArtifactVersion(patchedFiles);
         Set<String> fps = FP;
         // Used by tests
         String fpPaths = System.getProperty(FP_PATHS, null);
@@ -150,7 +152,7 @@ public final class Main {
                 if (origVersion != null) {
                     // replace with updated artifact
                     versionProps.put(entry.getKey(), entry.getValue());
-                    toRemove.add(convertToPath(origVersion).getParent());
+                    toRemove.add(convertToPath(origVersion));
                     oldArtifacts.put(entry.getKey(), origVersion);
                 }
             }
@@ -182,16 +184,8 @@ public final class Main {
                     newArtifactsMap.remove(key);
                 }
 
-                // Remove the actual old artifacts. We remove all inside the version directory.
-                for (Path oldPath : toRemove) {
-                    Path pr = mavenRepoRoot.resolve(oldPath);
-                    if (!Files.exists(pr)) {
-                        throw new RuntimeException(pr + " doesn't exist! Can't remove it");
-                    }
-                    //Delete from the version dir
-                    log.addDeletedArtifact(oldPath);
-                    IoUtils.recursiveDelete(pr);
-                }
+                // Remove the old artifacts.
+                deleteArtifacts(toRemove, mavenRepoRoot, log);
             }
         }
         if (createdPatches.isEmpty()) {
@@ -212,6 +206,52 @@ public final class Main {
 
         // Finally advertise what we have done
         log.print(content);
+    }
+
+    private static void deleteArtifacts(Set<Path> toRemove, Path mavenRepoRoot, Log log) throws Exception {
+        // Remove the old artifacts.
+        Map<Path, Set<Path>> versionDirs = new HashMap<>();
+        for (Path oldPath : toRemove) {
+            Path pr = mavenRepoRoot.resolve(oldPath);
+            if (!Files.exists(pr)) {
+                throw new RuntimeException(pr + " doesn't exist! Can't remove it");
+            }
+            Path parentDir = pr.getParent();
+            Set<Path> paths = versionDirs.get(parentDir);
+            if (paths == null) {
+                paths = new HashSet<>();
+                versionDirs.put(parentDir, paths);
+            }
+            paths.add(pr);
+            final Set<Path> finalPaths = paths;
+            // We want to delete all files that starts by the same name
+            // pom file being delete only if no more artifact in version dir after removal.
+            String name = pr.getFileName().toString();
+            Files.list(parentDir).filter((path) -> {
+                String fileName = path.getFileName().toString();
+                return fileName.startsWith(name);
+            }).forEach((path) -> {
+                finalPaths.add(path);
+            });
+        }
+        //Check the parent directory, if no more artifact delete it
+        // otherwise delete the subset of paths.
+        for (Entry<Path, Set<Path>> entry : versionDirs.entrySet()) {
+            Path versionDir = entry.getKey();
+            Set<Path> ignore = entry.getValue();
+            long num = Files.list(versionDir).filter((path) -> {
+                return isArtifact(path) && !ignore.contains(path);
+            }).count();
+            if (num == 0) {
+                IoUtils.recursiveDelete(versionDir);
+                log.addDeletedDir(mavenRepoRoot.relativize(versionDir));
+            } else {
+                for (Path path : entry.getValue()) {
+                    Files.delete(path);
+                    log.addDeletedArtifact(mavenRepoRoot.relativize(path));
+                }
+            }
+        }
     }
 
     private static String createPatchesFile(Path repoDir, List<FPID> createdPatchesGAV) throws UnsupportedEncodingException, IOException {
@@ -305,10 +345,12 @@ public final class Main {
         return path;
     }
 
-    private static Map<String, String> convertToArtifactVersion(Path p) throws Exception {
+    private static Map<String, String> convertToArtifactVersion(Set<Path> files) throws Exception {
         Map<String, String> map = new HashMap<>();
-        Path root = getMavenRepoRoot(p);
-        visitRepoPatch(root, map);
+        for (Path path : files) {
+            String[] entry = pathToArtifactVersion(path);
+            map.put(entry[0], entry[1]);
+        }
         return map;
     }
 
@@ -325,25 +367,6 @@ public final class Main {
             }
         });
         return path.get(0);
-    }
-
-    //org.wildfly.core:wildfly-cli::client=org.wildfly.core:wildfly-cli:11.0.0.Final:client:jar
-    //org.reactivestreams:reactive-streams=org.reactivestreams:reactive-streams:1.0.2::jar
-    private static void visitRepoPatch(Path p, Map<String, String> map) throws Exception {
-        Set<Path> files = new HashSet<>();
-        Files.walkFileTree(p, new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult visitFile(Path t, BasicFileAttributes bfa) throws IOException {
-                if (t.toString().endsWith(".jar") || t.toString().endsWith(".so")) {
-                    files.add(p.relativize(t));
-                }
-                return FileVisitResult.CONTINUE;
-            }
-        });
-        for (Path path : files) {
-            String[] entry = pathToArtifactVersion(path);
-            map.put(entry[0], entry[1]);
-        }
     }
 
     static String[] pathToArtifactVersion(Path path) {
@@ -374,16 +397,19 @@ public final class Main {
     }
 
     private static void retrievePatchedFiles(Path p, Set<Path> set) throws Exception {
-        Set<Path> files = new HashSet<>();
         Files.walkFileTree(p, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path t, BasicFileAttributes bfa) throws IOException {
-                if (t.toString().endsWith(".jar") || t.toString().endsWith(".so")) {
-                    set.add(p.relativize(t).getParent());
+                if (isArtifact(t)) {
+                    set.add(p.relativize(t));
                 }
                 return FileVisitResult.CONTINUE;
             }
         });
+    }
+
+    private static boolean isArtifact(Path p) {
+        return p.toString().endsWith(".jar") || p.toString().endsWith(".so");
     }
 
     private static FPID patchPathToGav(Path path) {

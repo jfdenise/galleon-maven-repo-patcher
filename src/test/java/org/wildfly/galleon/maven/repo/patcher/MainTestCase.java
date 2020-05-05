@@ -40,6 +40,7 @@ public class MainTestCase extends AbstractMainTest {
     final String fpVersion = "1.0-redhat-00001";
     final String expectedFpversion = "1.0" + Main.PATCH_MARKER + "-redhat-00001";
     final List<Artifact> lst = new ArrayList<>();
+    final Set<Path> dirRemoved = new HashSet<>();
 
     @Test
     public void test() throws Exception {
@@ -56,10 +57,21 @@ public class MainTestCase extends AbstractMainTest {
         lst2.add(TestUtils.createArtifact(root, "org.foo.bar.no.patch", "art2", "2.0", "lib", "so"));
         lst2.add(TestUtils.createArtifact(root, "org.foo.bar.no.patch", "art3", "3.0", null, "jar"));
 
+        // The classified is not patched although the non classified is patched
+        lst1.add(TestUtils.createArtifact(root, "org.foo.bar", "art1", "1.0", "lib", "so"));
+
         // Patched artifacts
-        lst1.add(TestUtils.createArtifact(root, patchedRoot, "org.foo.bar", "art1", "1.0", null, "jar"));
-        lst2.add(TestUtils.createArtifact(root, patchedRoot, "org.foo.bar", "art2", "2.0", null, "so"));
-        lst3.add(TestUtils.createArtifact(root, patchedRoot, "org.foo.bar", "art3", "3.0", "lib", "jar"));
+        lst1.add(TestUtils.createPatchedArtifact(root, patchedRoot, "org.foo.bar", "art1", "1.0", null, "jar"));
+
+        PatchedArtifact p1 = TestUtils.createPatchedArtifact(root, patchedRoot, "org.foo.bar", "art2", "2.0", null, "jar");
+        lst2.add(p1);
+        lst2.add(TestUtils.createPatchedArtifact(root, patchedRoot, "org.foo.bar", "art2", "2.0", "lib", "so"));
+        PatchedArtifact p2 = TestUtils.createPatchedArtifact(root, patchedRoot, "org.foo.bar", "art3", "3.0", "lib", "so");
+        lst3.add(p2);
+
+        // The version dir is removed for these ones:
+        dirRemoved.add(p1.getPath().getParent());
+        dirRemoved.add(p2.getPath().getParent());
 
         TestUtils.buildFP(root, producer1, fpVersion, lst1);
         TestUtils.buildFP(root, producer2, fpVersion, lst2);
@@ -95,6 +107,11 @@ public class MainTestCase extends AbstractMainTest {
             } else {
                 Assert.assertTrue(Files.exists(mavenRepo.resolve(a.getPath())));
             }
+        }
+
+        //Check that version parent directory has been removed
+        for (Path p : dirRemoved) {
+            Assert.assertFalse(Files.exists(p));
         }
 
         //check content of artifacts versions.

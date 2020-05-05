@@ -59,14 +59,16 @@ public class TestUtils {
         Path propsFile = wildflyDir.resolve("artifact-versions.properties");
         Map<String, String> artifactVersions = new HashMap<>();
         for (Artifact artifact : artifacts) {
-            artifactVersions.put(artifact.getEntry()[0], artifact.getEntry()[1]);
+            if (artifact.getEntry() != null) {
+                artifactVersions.put(artifact.getEntry()[0], artifact.getEntry()[1]);
+            }
         }
         Main.storeArtifactVersions(artifactVersions, propsFile);
         ZipUtils.zip(dir, outputFile);
         IoUtils.recursiveDelete(dir);
     }
 
-    static PatchedArtifact createArtifact(Path rootDir, Path patchedRootDir, String grpId, String artId, String version, String classifier, String extension) throws Exception {
+    static PatchedArtifact createPatchedArtifact(Path rootDir, Path patchedRootDir, String grpId, String artId, String version, String classifier, String extension) throws Exception {
         Path dir = rootDir.resolve(grpId.replaceAll("\\.", "/")).resolve(artId).resolve(version);
         Files.createDirectories(dir);
         StringBuilder builder = new StringBuilder();
@@ -74,9 +76,14 @@ public class TestUtils {
         if (classifier != null) {
             builder.append("-" + classifier);
         }
-        builder.append("." + extension);
-        Path file = dir.resolve(builder.toString());
+        Path file = dir.resolve(builder.toString() + "." + extension);
         Files.createFile(file);
+        Path pomFile = dir.resolve(builder.toString() + ".pom");
+        Files.createFile(pomFile);
+        Path sha1 = dir.resolve(builder.toString() + "." + extension + ".sha1");
+        Files.createFile(sha1);
+        Path sha1Pom = dir.resolve(builder.toString() + ".pom.sha1");
+        Files.createFile(sha1Pom);
 
         String patchVersion = version + ".patch";
         Path dirPatched = patchedRootDir.resolve(grpId.replaceAll("\\.", "/")).resolve(artId).resolve(patchVersion);
@@ -90,7 +97,21 @@ public class TestUtils {
         Path patchedFile = dirPatched.resolve(builderPatched.toString());
         Files.createFile(patchedFile);
         return new PatchedArtifact(rootDir.relativize(file), patchedRootDir.relativize(patchedFile));
+    }
 
+    static PatchedArtifact createPatchedArtifact(Path patchedRootDir, String grpId, String artId, String version, String classifier, String extension) throws Exception {
+        String patchVersion = version + ".patch";
+        Path dirPatched = patchedRootDir.resolve(grpId.replaceAll("\\.", "/")).resolve(artId).resolve(patchVersion);
+        Files.createDirectories(dirPatched);
+        StringBuilder builderPatched = new StringBuilder();
+        builderPatched.append(artId + "-" + patchVersion);
+        if (classifier != null) {
+            builderPatched.append("-" + classifier);
+        }
+        builderPatched.append("." + extension);
+        Path patchedFile = dirPatched.resolve(builderPatched.toString());
+        Files.createFile(patchedFile);
+        return new PatchedArtifact(null, patchedRootDir.relativize(patchedFile));
     }
 
     static Artifact createArtifact(Path rootDir, String grpId, String artId, String version, String classifier, String extension) throws Exception {
